@@ -39,27 +39,42 @@ func main() {
 }
 
 func BuscaCotacaoHandler(w http.ResponseWriter, r *http.Request) {
-	cotacao, err := BuscaCotacao()
+	ctx, cancel := context.WithTimeout(r.Context(), 200*time.Millisecond)
+	defer cancel()
+	cotacao, err := BuscaCotacao(ctx)
 	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
 		return
 	}
 	usdbrl := convertToEntity(cotacao)
+
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
 	err = insertDatabase(usdbrl)
 	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
 		return
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(usdbrl.Bid)
 }
 
-func BuscaCotacao() (*Cotacao, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-	resp, err := http.Get("https://economia.awesomeapi.com.br/json/last/USD-BRL")
+func BuscaCotacao(ctx context.Context) (*Cotacao, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", "https://economia.awesomeapi.com.br/json/last/USD-BRL", nil)
 	if err != nil {
 		return nil, err
 	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -67,30 +82,16 @@ func BuscaCotacao() (*Cotacao, error) {
 	}
 	var cotacao Cotacao
 	err = json.Unmarshal(body, &cotacao)
-	select {
-	case <-time.After(200 * time.Millisecond):
-		log.Println("Tempo excedido na requisição")
-	case <-ctx.Done():
-		log.Println("Processado com sucesso")
-	}
 	return &cotacao, nil
 }
 
 func insertDatabase(usdbrl *Usdbrl) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
-	defer cancel()
 	db, err := gorm.Open(sqlite.Open("db.sqlite"), &gorm.Config{})
 	if err != nil {
 		return err
 	}
 	db.AutoMigrate(&Usdbrl{})
 	db.Create(usdbrl)
-	select {
-	case <-time.After(10 * time.Millisecond):
-		log.Println("Tempo excedido inserção dos dados no banco")
-	case <-ctx.Done():
-		log.Println("Processado com sucesso")
-	}
 	return nil
 }
 
