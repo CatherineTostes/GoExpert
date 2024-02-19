@@ -1,0 +1,39 @@
+type Category {
+    id: ID!
+    name: String!
+    description: String
+    courses: [Course!]!
+}
+
+type Course {
+    id: ID!
+    name: String!
+    description: String
+    category: Category!
+}
+
+# Entrada de dados
+
+input NewCategory {
+    name: String!
+    description: String
+}
+
+input NewCourse {
+    name: String!
+    description: String
+    categoryId: ID!
+}
+
+# Tipo de consulta
+
+type Query {
+    categories: [Category!]!
+    courses: [Course!]!
+}
+
+# Mutations - alteração para o modelo de dados
+type Mutation {
+    createCategory(input: NewCategory!): Category!
+    createCourse(input: NewCourse!): Course!
+}
