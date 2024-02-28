@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -14,6 +15,7 @@ import (
 var (
 	s3Client *s3.S3
 	s3Bucket string
+	wg       sync.WaitGroup
 )
 
 func init() {
@@ -21,8 +23,8 @@ func init() {
 		&aws.Config{
 			Region: aws.String("us-east-1"),
 			Credentials: credentials.NewStaticCredentials(
-				"CREDENTIALSEXAMPLE",
-				"SECRETKEYEXAMPLE",
+				"---",
+				"---",
 				"",
 			),
 		},
@@ -40,6 +42,21 @@ func main() {
 		panic(err)
 	}
 	defer dir.Close()
+
+	uploadControl := make(chan struct{}, 100) // limita em 100 uploads de forma simultânea
+	erroFileUpload := make(chan string, 10)   // canal para armazenar os nomes dos arquivos que deram erro, com 10 retentativas simultâneas
+
+	go func() {
+		for {
+			select {
+			case fileName := <-erroFileUpload:
+				uploadControl <- struct{}{}
+				wg.Add(1)
+				go uploadFile(fileName, uploadControl, erroFileUpload)
+			}
+		}
+	}()
+
 	for {
 		files, err := dir.ReadDir(1)
 		if err != nil {
@@ -49,16 +66,22 @@ func main() {
 			fmt.Printf("Error reading directory: %s\n", err)
 			continue
 		}
-		uploadFile(files[0].Name())
+		wg.Add(1)
+		uploadControl <- struct{}{}
+		go uploadFile(files[0].Name(), uploadControl, erroFileUpload)
 	}
+	wg.Wait()
 }
 
-func uploadFile(filename string) {
+func uploadFile(filename string, uploadControl <-chan struct{}, erroFileUpload chan<- string) {
+	wg.Done()
 	completeFileName := fmt.Sprintf("./tmp/%s", filename)
 	fmt.Printf("Uploading file %s to bucket %s\n", completeFileName, s3Bucket)
 	file, err := os.Open(completeFileName)
 	if err != nil {
 		fmt.Printf("Error opening file %s\n", completeFileName)
+		<-uploadControl // esvazia o canal
+		erroFileUpload <- completeFileName
 		return
 	}
 	defer file.Close()
@@ -69,7 +92,10 @@ func uploadFile(filename string) {
 	})
 	if err != nil {
 		fmt.Printf("Error uploading file %s\n", completeFileName)
+		<-uploadControl // esvazia o canal
+		erroFileUpload <- completeFileName
 		return
 	}
 	fmt.Printf("File %s uploaded successfully\n", completeFileName)
+	<-uploadControl // esvazia o canal
 }
