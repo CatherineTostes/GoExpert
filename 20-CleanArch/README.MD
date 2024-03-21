@@ -73,12 +73,12 @@ Para subir o banco, deve subir a imagem docker presente no projeto:
 docker-compose up -d
 ```
 
-Para iniciar o mysql:
+Subindo as migrations:
 ```
-docker exec -it mysql bash
+make migrateUp
 ```
 
-Para criar a tabela de orders:
+Descendo as migrations:
 ```
-CREATE TABLE orders (id varchar(255) NOT NULL, price float NOT NULL, tax float NOT NULL, final_price float NOT NULL, PRIMARY KEY (id));
+make migrateDown
 ```
