@@ -12,7 +12,7 @@ Na aplicação, a chamada rest pode ser feita através do arquivo ```list_orders
 
 Fora do projeto pode ser feito montando uma requisição GET para a rota:
 ```
-http://localhost:8000/order
+http://localhost:8000/orders
 ```
 
 ### GRPC (grpcserver):
