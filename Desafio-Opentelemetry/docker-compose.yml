@@ -1,0 +1,34 @@
+version: '3'
+
+services:
+  zipkin:
+    image: openzipkin/zipkin
+    container_name: zipkin
+    ports:
+      - "9411:9411"
+    environment:
+      - ZIPKIN_ENDPOINT=http://zipkin:9411/api/v2/spans
+  servicoa:
+    container_name: servicoa
+    build:
+      context: .
+    environment:
+      - TITLE=Microservice A
+      - OTEL_SERVICE_NAME=microservice_a
+      - ZIPKIN_ENDPOINT=http://zipkin:9411/api/v2/spans
+    ports:
+        - "8080:8080"
+    depends_on:
+        - zipkin
+  servicob:
+    container_name: servicob
+    build:
+      context: .
+    environment:
+      - TITLE=Microservice B
+      - OTEL_SERVICE_NAME=microservice_b
+      - ZIPKIN_ENDPOINT=http://zipkin:9411/api/v2/spans
+    ports:
+        - "8181:8181"
+    depends_on:
+        - zipkin
