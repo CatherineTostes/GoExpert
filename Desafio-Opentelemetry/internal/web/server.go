@@ -38,7 +38,7 @@ type (
 )
 
 func GetCep(w http.ResponseWriter, r *http.Request) {
-	ctx, span := otel.Tracer(os.Getenv("OTEL_SERVICE_NAME")).Start(r.Context(), "GetCep")
+	ctx, span := otel.Tracer(os.Getenv("OTEL_SERVICE_NAME")).Start(r.Context(), "GetCepAndTemp")
 	defer span.End()
 
 	var cepInput CepInput
@@ -58,7 +58,7 @@ func GetCep(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cep, err := GetZipCode(cepInput.Cep)
+	cep, err := GetZipCode(ctx, cepInput.Cep)
 	if err != nil || cep.Cep == "" {
 		http.Error(w, "can not find zipcode", http.StatusNotFound)
 		return
@@ -82,7 +82,9 @@ func GetCep(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(temperature)
 }
 
-func GetZipCode(cepParam string) (*ViaCep, error) {
+func GetZipCode(ctx context.Context, cepParam string) (*ViaCep, error) {
+	ctx, span := otel.Tracer(os.Getenv("OTEL_SERVICE_NAME")).Start(ctx, "GetCep")
+	defer span.End()
 	resp, err := http.Get(fmt.Sprintf("https://viacep.com.br/ws/%s/json/", cepParam))
 	if err != nil {
 		return nil, err
